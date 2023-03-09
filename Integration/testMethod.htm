@@ -1,0 +1,83 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+</head>
+<!--<script src="https://presencedev.woolworths.co.za/webagent/Integration/sessionidcookie.js"></script> -->
+<body onload="ShowSessionId()">
+<script>
+////////////////////////// functions to get cookie data with Javascript //////////////////////
+function getCookie(c_name) {
+console.log("getCookie document " + document);
+console.log("document.cookie " + document.cookie);
+
+    var c_value = document.cookie;
+	console.log(c_value);
+    var c_start = c_value.indexOf(" " + c_name + "=");
+    if (c_start == -1) {
+        c_start = c_value.indexOf(c_name + "=");
+    }
+    if (c_start == -1) {
+        c_value = null;
+    } else {
+        c_start = c_value.indexOf("=", c_start) + 1;
+        var c_end = c_value.indexOf(";", c_start);
+        if (c_end == -1) {
+            c_end = c_value.length;
+        }
+        c_value = unescape(c_value.substring(c_start, c_end));
+    }
+	console.log(c_value);
+    return c_value;
+}
+////////////////// functions to get SessionId from cookie with Javascript //////////////////////
+function GetSessionId() {
+console.log("GetSessionId");
+    return getCookie("SessionId");
+}
+
+	function ShowSessionId()
+	{
+		document.getElementById("SessionId").value = GetSessionId();
+		alert("Session Id : " + GetSessionId());
+	}
+	
+	function getXmlHttpRequestObject() {  //Gets the browser specific XmlHttpRequest Object
+		if (window.XMLHttpRequest) {
+			return new XMLHttpRequest(); 	//Not IE
+		} else if(window.ActiveXObject) {
+			return new ActiveXObject("Microsoft.XMLHTTP"); //IE
+		} else {
+			alert("Your browser doesn't want to use AJAX"); //Displays error message 
+		}
+	}
+	var receiveReq = getXmlHttpRequestObject();
+	
+	function GetAgent() {
+	//receiveReq.open("POST", httpAddr + '/InovoCentralMonitorReportServer/UpgradeServlet', true);
+	receiveReq.open("GET", 'https://presencedev.woolworths.co.za/webagent/Integration.aspx?operation=GetAgentId', true);
+ 	//Set the function that will be called when the XmlHttpRequest objects state changes.		
+ 	receiveReq.onreadystatechange = GetAgentResult; 
+ 	receiveReq.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+ 	 				
+ 	//Make the actual request.		
+ 	receiveReq.send();
+	//Lets try to add some data to the text field here
+	}
+	function GetAgentResult() {
+		if (receiveReq.readyState == 4) {	
+			alert("Call Made");
+			document.getElementById('siteInfoDiv').innerHTML=receiveReq.responseText;
+		}
+	}
+	
+	
+</script>	
+	<label>Session ID:</label>
+        <br>		
+		
+        <input type="text" id="SessionId" value=""></input>        
+		
+	<button class="sizebutton" type="button" onclick="GetAgent()">GetAgentID</button>
+	<div id="siteInfoDiv"></div>
+</body>
+</HTML>

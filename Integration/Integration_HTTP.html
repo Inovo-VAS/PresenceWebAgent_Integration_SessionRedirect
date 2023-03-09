@@ -1,0 +1,2371 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+    
+    <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+        <title>Presence Agent HTTPD integration test</title>
+        <style type="text/css">
+            .font {
+                font-family: Verdana, Geneva, sans-serif;
+                font-size: 14px;
+            }
+            .sizebutton {
+                width: 200px;
+                border: plaid;
+            }
+        </style>
+    </head>
+    
+    <body class="font">
+        <script>
+            var isIE8 = window.XDomainRequest ? true : false;
+            var xdr;
+
+
+            function GetValue(attribute, XML) {
+                if (window.DOMParser) {
+                    parser = new DOMParser();
+                    xmlDoc = parser.parseFromString(XML, "text/xml");
+                } else // Internet Explorer
+                {
+                    xmlDoc = new ActiveXObject("Microsoft.XMLDOM");
+                    xmlDoc.async = false;
+                    xmlDoc.loadXML(XML);
+                }
+                var atributes = xmlDoc.getElementsByTagName(attribute);
+                return xmlDoc.getElementsByTagName(attribute)[0].childNodes[0].nodeValue;
+            }
+
+            function operationCallback(XML) {
+                //if it is ie8 it do a xdr to create cross-domain request
+                if (isIE8) {
+                    XML = xdr.responseText;
+                }
+				
+				///se he envuelto en un div porque si no no es compatible con IE8
+				
+				//try
+				//{				
+                //document.getElementById('XMLResult').innerHTML = XML;
+                //document.getElementById('TextResult').innerHTML = GetValue("Result", XML);
+				//}
+				//catch( ex ) {					
+					
+					var elem = document.getElementById('XMLResult');
+					elem.innerHTML = '<textarea name = "XMLResult" rows="6" cols="200">' + XML + '</textarea>';
+					
+					var elem2 = document.getElementById('TextResult');
+					elem2.innerHTML = '<textarea name = "TextResult" rows="6" cols="20">' + GetValue("Result", XML) + '</textarea>';
+				//}
+				
+
+
+            }
+
+            /// <method name="Xml_CreateXmlHttp">
+            /// <summary>
+            /// Creates an xml http object
+            /// </summary>
+            window.Xml_CreateXmlHttp = function () {
+
+                var MyobjXmlHTTP = 0
+                if (window.XMLHttpRequest) {
+                    // If IE7, Mozilla, Safari, and so on: Use native object.
+                    MyobjXmlHTTP = new XMLHttpRequest();
+                } else {
+                    if (window.ActiveXObject) {
+                        // ...otherwise, use the ActiveX control for IE5.x and IE6.
+                        MyobjXmlHTTP = new ActiveXObject('MSXML2.XMLHTTP.3.0');
+                    }
+                }
+                return MyobjXmlHTTP;
+            }
+
+
+            function OpenHTTPDIntegration(strUrl, callback) {
+
+                // set http method
+                var strMethod = "GET";
+                var mobjServerHTTPDProcesser;
+
+                if (isIE8) {
+                    this.xdr = new window.XDomainRequest();
+                    this.xdr.onload = callback
+                    this.xdr.open("GET", strUrl, false);
+                    xdr.send();
+                    return true;
+
+                } else {
+
+                    // create HTTP object
+                    if (mobjServerHTTPDProcesser == null) mobjServerHTTPDProcesser = Xml_CreateXmlHttp();
+
+                    // define http definitions
+                    mobjServerHTTPDProcesser.open(strMethod, strUrl, true);
+
+                    //		clearTimeout(FTimeout);
+                    //		FTimeout = setTimeout("Server_Events_Start()", 5000);
+
+                    // set callback function
+                    mobjServerHTTPDProcesser.onreadystatechange = function () {
+                        // if response is ready
+                        if (mobjServerHTTPDProcesser.readyState == 4) {
+                            var v_status = mobjServerHTTPDProcesser.status;
+                            if (v_status == 200) {
+                                //console.log("ENTER CALLBACK - server_events_start");
+
+                                //Trace_Write("Server Events: Response comunication and processing.");
+
+                                var Result = mobjServerHTTPDProcesser.responseText;
+
+
+                                mobjServerHTTPDProcesser = null;
+                                callback.call(Result);
+
+                            } else if (v_status == 0) {
+                                /** 
+                se ha provocado un refresco de la p?na
+                - firefox, establece el XmlHttpRequest.status a 0
+                - en explorer, no pasa por aqu?                **/
+                            } else if (v_status == 12029) {
+                                alert('Network connection lost. Contact with your administrator')
+                            } else {
+                                callback("ERROR");
+                            }
+                        }
+                        //console.log("LEAVE CALLBACK - server_events_start");
+                    };
+
+                    // send the http request
+                    //mblnCheckEventFired = true;
+                    mobjServerHTTPDProcesser.send(null);
+                }
+                //console.log("LEAVE - server_events_start");    
+                return true;
+
+
+            }
+
+            function SendPetition(operation) {
+                //eliminamos los anteriores resultados
+				var elem = document.getElementById('XMLResult');
+				var elem2 = document.getElementById('TextResult');
+				elem.innerHTML = '<textarea name = "XMLResult" rows="6" cols="200"></textarea>';
+				elem2.innerHTML = '<textarea name = "TextResult" rows="6" cols="20"></textarea>';
+					
+                try {
+                    isWebAgent = (document.getElementById('AgentType').value == 1);
+                } catch (err) {
+                    isWebAgent = false;
+                }
+
+
+                var form = document.getElementById(operation);
+                var elements = form.elements;
+                var url = "";
+
+                for (i = 0; i < elements.length; i++) {
+                    if ((elements[i].type == 'text') | (elements[i].type == 'select-one')) {
+
+
+                        //add '&' if operation has parameters
+                        if (url != '') url += "&";
+
+
+                        url += elements[i].name + "=" + elements[i].value;
+                    }
+                }
+
+
+                if (!isWebAgent) {
+                    if (url != '') url = "?" + url;
+
+                    url = document.getElementById("AgentURL").value + operation + url;
+                } else {
+                    if (url != '') url = "&" + url;
+					if(document.getElementById("SessionId").value == '')
+					{
+					url = document.getElementById("AgentURL").value + 'Integration.aspx' + "?operation=" + operation + url;
+					}
+					else{
+                    url = document.getElementById("AgentURL").value + 'Integration.aspx' + "?operation=" + operation + "&SessionId=" + document.getElementById("SessionId").value + url;
+					}
+                }
+
+                document.getElementById("URLHTTPD").innerHTML = url;
+
+
+                OpenHTTPDIntegration(url, function () {
+                    operationCallback(this)
+                });
+            }
+        </script>
+        
+        	
+        <div>
+        
+        <select id="AgentType">
+            <option value="0">Agent</option>
+            <option value="1">Web Agent</option>
+        </select>
+        
+        <br>
+        <label>Web Agent Session ID (only when WebAgent selected):</label>
+        <br>
+        <input id="SessionId"></input>
+        <br>
+        </div>
+        
+        <label>Agent URL (in webagent http://[SERVERIP]/WebAgent/):</label>
+        <br>
+		
+        <input style="" id="AgentURL" value= "http://127.0.0.1:<#HTTPPORT>/"></input>
+        
+        <br>
+        <table width="100%" border="0">
+            <tr bgcolor="#FFCC33">
+                <th scope="col">Function</th>
+                <th colspan="4" scope="col">Parameters</th>
+            </tr>
+            <tr bgcolor="#FFE89F">
+                <td colspan="5" align="left">Softphone methods</td>
+            </tr>
+            <tr>
+                <!-- MakeCall -->
+                <form id="MakeCall">
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('MakeCall')">MakeCall</button>
+                    </td>
+                    <td>
+                        <label>Phone:</label>
+                        <input type="text" name="Phone" />
+                    </td>
+                    <td>
+                        <label>AppData:</label>
+                        <input type="text" name="AppData" />
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- MakeCallFrom -->
+                <form name="formMakeCallFrom" id="MakeCallFrom" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('MakeCallFrom')">MakeCallFrom</button>
+                    </td>
+                    <td>
+                        <label>StationFrom:</label>
+                        <input type="text" name="StationFrom" />
+                    </td>
+                    <td>
+                        <label>Phone:</label>
+                        <input type="text" name="Phone" />
+                    </td>
+                    <td>
+                        <label>AppData:</label>
+                        <input type="text" name="AppData" />
+                    </td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- MakeConsultationCall -->
+                <form name="formMakeConsultationCall" id="MakeConsultationCall" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('MakeConsultationCall')">MakeConsultationCall</button>
+                    </td>
+                    <td>
+                        <label>Phone:</label>
+                        <input type="text" name="Phone" />
+                    </td>
+                    <td>
+                        <label>AppData:</label>
+                        <input type="text" name="AppData" />
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- ClearActiveCall -->
+                <form name="formClearActiveCall" id="ClearActiveCall" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('ClearActiveCall')">ClearActiveCall</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- ClearCalls -->
+                <form name="formClearCalls" id="ClearCalls" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('ClearCalls')">ClearCalls</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- AnswerCall -->
+                <form name="formAnswerCall" id="AnswerCall" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('AnswerCall')">AnswerCall</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- HoldCall -->
+                <form name="formHoldCall" id="HoldCall" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('HoldCall')">HoldCall</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- TransferCall -->
+                <form name="formTransferCall" id="TransferCall" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('TransferCall')">TransferCall</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- SingleStepTransferCall -->
+                <form name="formSingleStepTransferCall" id="SingleStepTransferCall" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('SingleStepTransferCall')">SingleStepTransferCall</button>
+                    </td>
+                    <td>
+                        <label>Phone:</label>
+                        <input type="text" name="Phone" />
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- ConferenceCall -->
+                <form name="formConferenceCall" id="ConferenceCall" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('ConferenceCall')">ConferenceCall</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- DropCall -->
+                <form name="formDropCall" id="DropCall" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('DropCall')">DropCall</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- SendDTMFTones -->
+                <form name="formSendDTMFTones" id="SendDTMFTones" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('SendDTMFTones')">SendDTMFTones</button>
+                    </td>
+                    <td>
+                        <label>Tones:</label>
+                        <input type="text" name="Tones" />
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- GetLines -->
+                <form name="formGetLine" id="GetLines" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('GetLines')">GetLines</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- GetLineCount -->
+                <form name="formGetLineCount" id="GetLineCount" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('GetLineCount')">GetLineCount</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- GetANI -->
+                <form name="formGetANI" id="GetANI" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('GetANI')">GetANI</button>
+                    </td>
+                    <td>
+                        <label>Index:</label>
+                        <input type="text" name="Index" />
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- GetCallId -->
+                <form name="formGetCallId" id="GetCallId" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('GetCallId')">GetCallId</button>
+                    </td>
+                    <td>
+                        <label>Index:</label>
+                        <input type="text" name="Index" />
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- SetLineActive -->
+                <form name="formSetLineActive" id="SetLineActive" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('SetLineActive')">SetLineActive</button>
+                    </td>
+                    <td>
+                        <label>Index:</label>
+                        <input type="text" name="Index" />
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr bgcolor="#FFE89F">
+                <td colspan="5" align="left">Session control methods</td>
+            </tr>
+            <tr>
+                <!-- StartSession -->
+                <form name="formStartSession" id="StartSession" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('StartSession')">StartSession</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- StopSession -->
+                <form name="formStopSession" id="StopSession" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('StopSession')">StopSession</button>
+                    </td>
+                    <td>
+                        <label>ReasonCode:</label>
+                        <input type="text" name="ReasonCode" />
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr bgcolor="#FFE89F">
+                <td colspan="5" align="left">Contact methods</td>
+            </tr>
+            <tr>
+                <!-- GetCallData -->
+                <form name="formGetCallData" id="GetCallData" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('GetCallData')">GetCallData</button>
+                    </td>
+                    <td>
+                        <label>Key:</label>
+                        <input type="text" name="Key" />
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- AddCallData -->
+                <form name="formAddCallData" id="AddCallData" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('AddCallData')">AddCallData</button>
+                    </td>
+                    <td>
+                        <label>Key:</label>
+                        <input type="text" name="Key" />
+                    </td>
+                    <td>
+                        <label>Value:</label>
+                        <input type="text" name="Value" />
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- DeleteCallData -->
+                <form name="formDeleteCallData" id="DeleteCallData" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('DeleteCallData')">DeleteCallData</button>
+                    </td>
+                    <td>
+                        <label>Key:</label>
+                        <input type="text" name="Key" />
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- GenerateNewPredictiveCall -->
+                <form name="formGenerateNewPredictiveCall" id="GenerateNewPredictiveCall"
+                method="get"  >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('GenerateNewPredictiveCall')">GenerateNewPredictiveCall</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- IsValidQCode -->
+                <form name="formIsValidQCode" id="IsValidQCode" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('IsValidQCode')">IsValidQCode</button>
+                    </td>
+                    <td>
+                        <label>QCode:</label>
+                        <input type="text" name="QCode" />
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- CloseContact -->
+                <form name="formCloseContact" id="CloseContact" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('CloseContact')">CloseContact</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- StartRecording -->
+                <form name="formStartRecording" id="StartRecording" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('StartRecording')">StartRecording</button>
+                    </td>
+                    <td>
+                        <label>AppData:</label>
+                        <input type="text" name="AppData" />
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- PauseRecording -->
+                <form name="formPauseRecording" id="PauseRecording" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('PauseRecording')">PauseRecording</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- StopRecording -->
+                <form name="formStopRecording" id="StopRecording" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('StopRecording')">StopRecording</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- GetServiceAgents -->
+                <form name="formGetServiceAgents" id="GetServiceAgents" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('GetServiceAgents')">GetServiceAgents</button>
+                    </td>
+                    <td>
+                        <label>ServiceId:</label>
+                        <input type="text" name="ServiceId" />
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- RequestServiceAgents -->
+                <form name="formRequestServiceAgents" id="RequestServiceAgents" method="get"
+                 >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('RequestServiceAgents')">RequestServiceAgents</button>
+                    </td>
+                    <td>
+                        <label>ServiceId:</label>
+                        <input type="text" name="ServiceId" />
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- ServiceAgentsCount -->
+                <form name="formServiceAgentsCount" id="ServiceAgentsCount" method="get"
+                 >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('ServiceAgentsCount')">ServiceAgentsCount</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- ServiceAgentsLogin -->
+                <form name="formServiceAgentsLogin" id="ServiceAgentsLogin" method="get"
+                 >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('ServiceAgentsLogin')">ServiceAgentsLogin</button>
+                    </td>
+                    <td>
+                        <label>Index:</label>
+                        <input type="text" name="Index" />
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- ServiceAgentsName -->
+                <form name="formServiceAgentsName" id="ServiceAgentsName" method="get"
+                 >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('ServiceAgentsName')">ServiceAgentsName</button>
+                    </td>
+                    <td>
+                        <label>Index:</label>
+                        <input type="text" name="Index" />
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- ServiceAgentsStatus -->
+                <form name="formServiceAgentsStatus" id="ServiceAgentsStatus" method="get"
+                 >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('ServiceAgentsStatus')">ServiceAgentsStatus</button>
+                    </td>
+                    <td>
+                        <label>Index:</label>
+                        <input type="text" name="Index" />
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr bgcolor="#FFE89F">
+                <td colspan="5" align="left">Properties</td>
+            </tr>
+            <tr>
+                <!-- GetAgentId -->
+                <form name="formGetAgentId" id="GetAgentId" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('GetAgentId')">GetAgentId</button>
+                    </td>
+                    <td>&nbsp;</td>
+
+
+
+
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- GetAgentStation -->
+                <form name="formGetAgentStation" id="GetAgentStation" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('GetAgentStation')">GetAgentStation</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- GetAgentName -->
+                <form name="formGetAgentName" id="GetAgentName" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('GetAgentName')">GetAgentName</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- GetPhone -->
+                <form name="formGetPhone" id="GetPhone" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('GetPhone')">GetPhone</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- SetPhone -->
+                <form name="formSetPhone" id="SetPhone" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('SetPhone')">SetPhone</button>
+                    </td>
+                    <td>
+                        <label>Phone:</label>
+                        <input type="text" name="Phone" />
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- GetCallType -->
+                <form name="formGetCallType" id="GetCallType" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('GetCallType')">GetCallType</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- GetSourceId -->
+                <form name="formGetSourceId" id="GetSourceId" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('GetSourceId')">GetSourceId</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- SetSourceId -->
+                <form name="formSetSourceId" id="SetSourceId" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('SetSourceId')">SetSourceId</button>
+                    </td>
+                    <td>
+                        <label>SourceId:</label>
+                        <input type="text" name="SourceId" />
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- GetContactId -->
+                <form name="formGetContactId" id="GetContactId" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('GetContactId')">GetContactId</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- GetClientInfo -->
+                <form name="formGetClientInfo" id="GetClientInfo" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('GetClientInfo')">GetClientInfo</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- SetClientInfo -->
+                <form name="formSetClientInfo" id="SetClientInfo" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('SetClientInfo')">SetClientInfo</button>
+                    </td>
+                    <td>
+                        <label>ClientInfo:</label>
+                        <input type="text" name="ClientInfo" />
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- GetCollectDigits -->
+                <form name="formGetCollectDigits" id="GetCollectDigits" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('GetCollectDigits')">GetCollectDigits</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- GetCollectVDN -->
+                <form name="formGetCollectVDN" id="GetCollectVDN" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('GetCollectVDN')">GetCollectVDN</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- GetDNIS -->
+                <form name="formGetDNIS" id="GetDNIS" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('GetDNIS')">GetDNIS</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- GetUCID -->
+                <form name="formGetUCID" id="GetUCID" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('GetUCID')">GetUCID</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- GetSkill -->
+                <form name="formGetSkill" id="GetSkill" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('GetSkill')">GetSkill</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- GetVDN -->
+                <form name="formGetVDN" id="GetVDN" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('GetVDN')">GetVDN</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- GetSkillDescription -->
+                <form name="formGetSkillDescription" id="GetSkillDescription" method="get"
+                 >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('GetSkillDescription')">GetSkillDescription</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- GetVDNDescription -->
+                <form name="formGetVDNDescription" id="GetVDNDescription" method="get"
+                 >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('GetVDNDescription')">GetVDNDescription</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- GetServiceId -->
+                <form name="formGetServiceId" id="GetServiceId" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('GetServiceId')">GetServiceId</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- GetServiceName -->
+                <form name="formGetServiceName" id="GetServiceName" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('GetServiceName')">GetServiceName</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- GetOutboundType -->
+                <form name="formGetOutboundType" id="GetOutboundType" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('GetOutboundType')">GetOutboundType</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- GetPredictionType -->
+                <form name="formGetPredictionType" id="GetPredictionType" method="get"
+                 >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('GetPredictionType')">GetPredictionType</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- GetPredictionLevel -->
+                <form name="formGetPredictionLevel" id="GetPredictionLevel" method="get"
+                 >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('GetPredictionLevel')">GetPredictionLevel</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- GetQCode -->
+                <form name="formGetQCode" id="GetQCode" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('GetQCode')">GetQCode</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- SetQCode -->
+                <form name="formSetQCode" id="SetQCode" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('SetQCode')">SetQCode</button>
+                    </td>
+                    <td>
+                        <label>QCode:</label>
+                        <input type="text" name="QCode" />
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- GetScheduledDate -->
+                <form name="formGetScheduledDate" id="GetScheduledDate" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('GetScheduledDate')">GetScheduledDate</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- SetScheduledDate -->
+                <form name="formSetScheduledDate" id="SetScheduledDate" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('SetScheduledDate')">SetScheduledDate</button>
+                    </td>
+                    <td>
+                        <label>ScheduledDate:</label>
+                        <input type="text" name="ScheduledDate" />
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- GetContactName -->
+                <form name="formGetContactName" id="GetContactName" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('GetContactName')">GetContactName</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- SetContactName -->
+                <form name="formSetContactName" id="SetContactName" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('SetContactName')">SetContactName</button>
+                    </td>
+                    <td>
+                        <label>Name:</label>
+                        <input type="text" name="Name" />
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- GetComments -->
+                <form name="formGetComments" id="GetComments" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('GetComments')">GetComments</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- SetComments -->
+                <form name="formSetComments" id="SetComments" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('SetComments')">SetComments</button>
+                    </td>
+                    <td colspan="4">
+                        <label>Comments:</label>
+                        <input name="Comments" type="text" size="100" />
+                    </td>
+                </form>
+            </tr>
+            <tr>
+                <!-- GetCaptured -->
+                <form name="formGetCaptured" id="GetCaptured" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('GetCaptured')">GetCaptured</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- SetCaptured -->
+                <form name="formSetCaptured" id="SetCaptured" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('SetCaptured')">SetCaptured</button>
+                    </td>
+                    <td colspan="4">
+                        <label>Captured:</label>
+                        <input type="text" name="Captured" />(0: Disabled, 1: Enabled)</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- GetCapturedDate -->
+                <form name="formGetCapturedDate" id="GetCapturedDate" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('GetCapturedDate')">GetCapturedDate</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- SetCapturedDate -->
+                <form name="formSetCapturedDate" id="SetCapturedDate" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('SetCapturedDate')">SetCapturedDate</button>
+                    </td>
+                    <td>
+                        <label>CapturedDate:</label>
+                        <input type="text" name="CapturedDate" />
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- GetQueuedContactsEventTimer -->
+                <form name="formGetQueuedContactsEventTimer" id="GetQueuedContactsEventTimer"
+                method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('GetQueuedContactsEventTimer')">GetQueuedContactsEventTimer</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- SetQueuedContactsEventTimer -->
+                <form name="formSetQueuedContactsEventTimer" id="SetQueuedContactsEventTimer"
+                method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('SetQueuedContactsEventTimer')">SetQueuedContactsEventTimer</button>
+                    </td>
+                    <td>
+                        <label>Interval:</label>
+                        <input type="text" name="Interval" />
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- GetCustomData1 -->
+                <form name="formGetCustomData1" id="GetCustomData1" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('GetCustomData1')">GetCustomData1</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- SetCustomData1 -->
+                <form name="formSetCustomData1" id="SetCustomData1" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('SetCustomData1')">SetCustomData1</button>
+                    </td>
+                    <td colspan="4">
+                        <label>CustomData1:</label>
+                        <input name="CustomData1" type="text" size="100" />
+                    </td>
+                </form>
+            </tr>
+            <tr>
+                <!-- GetCustomData2 -->
+                <form name="formGetCustomData2" id="GetCustomData2" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('GetCustomData2')">GetCustomData2</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- SetCustomData2 -->
+                <form name="formSetCustomData2" id="SetCustomData2" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('SetCustomData2')">SetCustomData2</button>
+                    </td>
+                    <td colspan="4">
+                        <label>CustomData2:</label>
+                        <input name="CustomData2" type="text" size="100" />
+                    </td>
+                </form>
+            </tr>
+            <tr>
+                <!-- GetCustomData3 -->
+                <form name="formGetCustomData3" id="GetCustomData3" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('GetCustomData3')">GetCustomData3</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- SetCustomData3 -->
+                <form name="formSetCustomData3" id="SetCustomData3" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('SetCustomData3')">SetCustomData3</button>
+                    </td>
+                    <td colspan="4">
+                        <label>CustomData3:</label>
+                        <input name="CustomData3" type="text" size="100" />
+                    </td>
+                </form>
+            </tr>
+            <tr>
+                <!-- GetContactData1 -->
+                <form name="formGetContactData1" id="GetContactData1" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('GetContactData1')">GetContactData1</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- SetContactData1 -->
+                <form name="formSetContactData1" id="SetContactData1" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('SetContactData1')">SetContactData1</button>
+                    </td>
+                    <td colspan="4">
+                        <label>ContactData1:</label>
+                        <input name="ContactData1" type="text" size="100" />
+                    </td>
+                </form>
+            </tr>
+            <tr>
+                <!-- GetContactData2 -->
+                <form name="formGetContactData2" id="GetContactData2" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('GetContactData2')">GetContactData2</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- SetContactData2 -->
+                <form name="formSetContactData2" id="SetContactData2" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('SetContactData2')">SetContactData2</button>
+                    </td>
+                    <td colspan="4">
+                        <label>ContactData2:</label>
+                        <input name="ContactData2" type="text" size="100" />
+                    </td>
+                </form>
+            </tr>
+            <tr>
+                <!-- GetContactData3 -->
+                <form name="formGetContactData3" id="GetContactData3" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('GetContactData3')">GetContactData3</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- SetContactData3 -->
+                <form name="formSetContactData3" id="SetContactData3" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('SetContactData3')">SetContactData3</button>
+                    </td>
+                    <td colspan="4">
+                        <label>ContactData3:</label>
+                        <input name="ContactData3" type="text" size="100" />
+                    </td>
+                </form>
+            </tr>
+            <tr>
+                <!-- GetCallerId -->
+                <form name="formGetCallerId" id="GetCallerId" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('GetCallerId')">GetCallerId</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- SetCallerId -->
+                <form name="formSetCallerId" id="SetCallerId" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('SetCallerId')">SetCallerId</button>
+                    </td>
+                    <td colspan="4">
+                        <label>CallerId:</label>
+                        <input name="CallerId" type="text" size="100" />
+                    </td>
+                </form>
+            </tr>      
+            <tr>
+                <!-- GetCallerName -->
+                <form name="formGetCallerName" id="GetCallerName" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('GetCallerName')">GetCallerName</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- SetCallerName -->
+                <form name="formSetCallerName" id="SetCallerName" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('SetCallerName')">SetCallerName</button>
+                    </td>
+                    <td colspan="4">
+                        <label>CallerName:</label>
+                        <input name="CallerName" type="text" size="100" />
+                    </td>
+                </form>
+            </tr>                       
+            <tr>
+                <!-- GetContactCallId -->
+                <form name="formGetContactCallId" id="GetContactCallId" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('GetContactCallId')">GetContactCallId</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- GetCapturedLogin -->
+                <form name="formGetCapturedLogin" id="GetCapturedLogin" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('GetCapturedLogin')">GetCapturedLogin</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>			
+            <tr>
+                <!-- GetCapturedLoginName -->
+                <form name="formGetCapturedLoginName" id="GetCapturedLoginName" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('GetCapturedLoginName')">GetCapturedLoginName</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>			
+            <tr>
+                <!-- GetCapturingAgent -->
+                <form name="formGetCapturingAgent" id="GetCapturingAgent" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('GetCapturingAgent')">GetCapturingAgent</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>			
+            <tr>
+                <!-- GetLastAgent -->
+                <form name="formGetLastAgent" id="GetLastAgent" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('GetLastAgent')">GetLastAgent</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>			
+            <tr>
+                <!-- GetLastQCode -->
+                <form name="formGetLastQCode" id="GetLastQCode" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('GetLastQCode')">GetLastQCode</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>			
+            <tr>
+                <!-- GetLastQCodeDescription -->
+                <form name="formGetLastQCodeDescription" id="GetLastQCodeDescription" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('GetLastQCodeDescription')">GetLastQCodeDescription</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>			
+            <tr>
+                <!-- GetLastHandlingDate -->
+                <form name="formGetLastHandlingDate" id="GetLastHandlingDate" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('GetLastHandlingDate')">GetLastHandlingDate</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>			
+            <tr>
+                <!-- GetLastDataSourceId -->
+                <form name="formGetLastDataSourceId" id="GetLastDataSourceId" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('GetLastDataSourceId')">GetLastDataSourceId</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>			
+            <tr>
+                <!-- GetLastDataSourceCustomerId -->
+                <form name="formGetLastDataSourceCustomerId" id="GetLastDataSourceCustomerId" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('GetLastDataSourceCustomerId')">GetLastDataSourceCustomerId</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>			
+            <tr>
+                <!-- GetContactType -->
+                <form name="formGetContactType" id="GetContactType" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('GetContactType')">GetContactType</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>			
+            <tr bgcolor="#FFE89F">
+                <td colspan="5" align="left">Special methods</td>
+            </tr>
+            <!-- InsertOutboundRecord -->
+            <form name="formInsertOutboundRecord" id="InsertOutboundRecord" method="get"
+             >
+                <tr>
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('InsertOutboundRecord')">InsertOutboundRecord</button>
+                    </td>
+                    <td>
+                        <label>ServiceId:</label>
+                        <input type="text" name="ServiceId" />
+                    </td>
+                    <td>
+                        <label>LoadId:</label>
+                        <input type="text" name="LoadId" />
+                    </td>
+                    <td>
+                        <label>SourceId:</label>
+                        <input type="text" name="SourceId" />
+                    </td>
+                    <td>
+                        <label>Name:</label>
+                        <input type="text" name="Name" />
+                    </td>
+                </tr>
+                <tr>
+                    <td>&nbsp;</td>
+                    <td>
+                        <label>Timezone:</label>
+                        <input type="text" name="Timezone" />
+                    </td>
+                    <td>
+                        <label>Status:</label>
+                        <input type="text" name="Status" />
+                    </td>
+                    <td>
+                        <label>Phone:</label>
+                        <input type="text" name="Phone" />
+                    </td>
+                    <td>
+                        <label>PhoneTimeZone:</label>
+                        <input type="text" name="PhoneTimeZone" />
+                    </td>
+                </tr>
+                <tr>
+                    <td>&nbsp;</td>
+                    <td>
+                        <label>AlternativePhones:</label>
+                        <input type="text" name="AlternativePhones" />
+                    </td>
+                    <td>
+                        <label>AlternativePhoneDescriptions:</label>
+                        <input name="AlternativePhoneDescriptions" type="text" />
+                    </td>
+                    <td>
+                        <label>AlternativePhoneTimeZones:</label>
+                        <input name="AlternativePhoneTimeZones" type="text" />
+                    </td>
+                    <td>
+                        <label>AutomaticTimeZoneDetection:</label>
+                        <input type="text" name="AutomaticTimeZoneDetection" />(0: Disabled, 1: Enabled)
+                    </td>
+                </tr>
+                <tr>
+                    <td>&nbsp;</td>
+                    <td>
+                        <label>ScheduledDate:</label>
+                        <input type="text" name="ScheduledDate" />
+                    </td>
+                    <td>
+                        <label>CapturingAgent:</label>
+                        <input name="CapturingAgent" type="text" />
+                    </td>
+                    <td>
+                        <label>Priority:</label>
+                        <input name="Priority" type="text" />
+                    </td>
+                    <td>
+                        <label>Comments:</label>
+                        <input name="Comments" type="text" />
+                    </td>
+                </tr>
+                <tr>
+                    <td>&nbsp;</td>
+                    <td>
+                        <label>CustomData1:</label>
+                        <input name="CustomData1" type="text" />
+                    </td>
+                    <td>
+                        <label>CustomData2:</label>
+                        <input name="CustomData2" type="text" />
+                    </td>
+                    <td>
+                        <label>CustomData3:</label>
+                        <input name="CustomData3" type="text" />
+                    </td>
+                    <td>&nbsp;</td>
+                </tr>       
+                <tr>
+                    <td>&nbsp;</td>
+                    <td>
+                        <label>CustomerId:</label>
+                        <input name="CustomerId" type="text" />
+                    </td>
+                    <td>
+                        <label>CallerId:</label>
+                        <input name="CallerId" type="text" />
+                    </td>
+                    <td>
+                        <label>CallerName:</label>
+                        <input name="CallerName" type="text" />
+                    </td>
+                    <td>&nbsp;</td>
+                </tr>                             
+            </form>
+            <tr>
+                <!-- DeleteOutboundContact -->
+                <form name="formDeleteOutboundContact" id="DeleteOutboundContact" method="get"
+                 >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('DeleteOutboundContact')">DeleteOutboundContact</button>
+                    </td>
+                    <td>
+                        <label>ServiceId:</label>
+                        <input type="text" name="ServiceId" />
+                    </td>
+                    <td>
+                        <label>LoadId:</label>
+                        <input type="text" name="LoadId" />
+                    </td>
+                    <td>
+                        <label>SourceId:</label>
+                        <input type="text" name="SourceId" />
+                    </td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <!-- RequestOutboundACDCall -->
+            <form name="formRequestOutboundACDCall" id="RequestOutboundACDCall" method="get" 
+            >
+                <tr>
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('RequestOutboundACDCall')">RequestOutboundACDCall</button>
+                    </td>
+                    <td>
+                        <label>ServiceId:</label>
+                        <input type="text" name="ServiceId" />
+                    </td>
+                    <td>
+                        <label>Phone:</label>
+                        <input type="text" name="Phone" />
+                    </td>
+                    <td>
+                        <label>Name:</label>
+                        <input type="text" name="Name" />
+                    </td>
+                    <td>
+                        <label>ScheduledDate:</label>
+                        <input type="text" name="ScheduledDate" />
+                    </td>
+                </tr>
+                <tr>
+                    <td>&nbsp;</td>
+                    <td colspan="4">
+                        <label>Comments:</label>
+                        <input name="Comments" type="text" size="100" />
+                    </td>
+                </tr>
+            </form>
+            <tr>
+                <!-- GetInternetVariable -->
+                <form name="formGetInternetVariable" id="GetInternetVariable" method="get"
+                 >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('GetInternetVariable')">GetInternetVariable</button>
+                    </td>
+                    <td>
+                        <label>Name:</label>
+                        <input type="text" name="Name" />
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr bgcolor="#FFE89F">
+                <td colspan="5" align="left">Mail methods</td>
+            </tr>
+            <tr>
+                <!-- SendMail -->
+                <form name="formSendMail" id="SendMail" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('SendMail')">SendMail</button>
+                    </td>
+                    <td>
+                        <label>From:</label>
+                        <input type="text" name="From" />
+                    </td>
+                    <td>
+                        <label>MailTo:</label>
+                        <input type="text" name="MailTo" />
+                        <label>CC:</label>
+                        <input type="text" name="CC" />
+                        <label>BCC:</label>
+                        <input type="text" name="BCC" />
+                    </td>
+                    <td>
+                        <label>Subject:</label>
+                        <input type="text" name="Subject" />
+                    </td>
+                    <td>
+                        <label>Body:</label>
+                        <input type="text" name="Body" />
+                    </td>
+                </form>
+            </tr>
+            <tr>
+                <!-- GetMailIn -->
+                <form name="formGetMailIn" id="GetMailIn" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('GetMailIn')">GetMailIn</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- GetMailInId -->
+                <form name="formGetMailInId" id="GetMailInId" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('GetMailInId')">GetMailInId</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- GetMailInFrom -->
+                <form name="formGetMailInFrom" id="GetMailInFrom" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('GetMailInFrom')">GetMailInFrom</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- GetMailInTo -->
+                <form name="formGetMailInTo" id="GetMailInTo" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('GetMailInTo')">GetMailInTo</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- GetMailInCC -->
+                <form name="formGetMailInCC" id="GetMailInCC" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('GetMailInCC')">GetMailInCC</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- GetMailInBCC -->
+                <form name="formGetMailInBCC" id="GetMailInBCC" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('GetMailInBCC')">GetMailInBCC</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- GetMailInSubject -->
+                <form name="formGetMailInSubject" id="GetMailInSubject" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('GetMailInSubject')">GetMailInSubject</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- GetMailInBody -->
+                <form name="formGetMailInBody" id="GetMailInBody" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('GetMailInBody')">GetMailInBody</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- GetMailInAttachmentCount -->
+                <form name="formGetMailInAttachmentCount" id="GetMailInAttachmentCount"
+                method="get"  >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('GetMailInAttachmentCount')">GetMailInAttachmentCount</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- GetMailInAttachmentName -->
+                <form name="formGetMailInAttachmentName" id="GetMailInAttachmentName"
+                method="get"  >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('GetMailInAttachmentName')">GetMailInAttachmentName</button>
+                    </td>
+                    <td>
+                        <label>Index:</label>
+                        <input type="text" name="Index" />
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- MailInAttachmentOpen -->
+                <form name="formMailInAttachmentOpen" id="MailInAttachmentOpen" method="get"
+                 >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('MailInAttachmentOpen')">MailInAttachmentOpen</button>
+                    </td>
+                    <td>
+                        <label>Index:</label>
+                        <input type="text" name="Index" />
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- MailInAttachmentSave -->
+                <form name="formMailInAttachmentSave" id="MailInAttachmentSave" method="get"
+                 >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('MailInAttachmentSave')">MailInAttachmentSave</button>
+                    </td>
+                    <td>
+                        <label>Index:</label>
+                        <input type="text" name="Index" />
+                    </td>
+                    <td>
+                        <label>Path:</label>
+                        <input type="text" name="Path" />
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- GetMailOut -->
+                <form name="formGetMailOut" id="GetMailOut" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('GetMailOut')">GetMailOut</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- GetMailOutTo -->
+                <form name="formGetMailOutTo" id="GetMailOutTo" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('GetMailOutTo')">GetMailOutTo</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- GetMailOutSubject -->
+                <form name="formGetMailOutSubject" id="GetMailOutSubject" method="get"
+                 >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('GetMailOutSubject')">GetMailOutSubject</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- GetMailOutBody -->
+                <form name="formGetMailOutBody" id="GetMailOutBody" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('GetMailOutBody')">GetMailOutBody</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- MailOutCompose -->
+                <form name="formMailOutCompose" id="MailOutCompose" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('MailOutCompose')">MailOutCompose</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- SetMailOut -->
+                <form name="formSetMailOut" id="SetMailOut" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('SetMailOut')">SetMailOut</button>
+                    </td>
+                    <td>
+                        <label>MailTo:</label>
+                        <input type="text" name="MailTo" />
+                    </td>
+                    <td>
+                        <label>CC:</label>
+                        <input type="text" name="CC" />
+                        <label>BCC:</label>
+                        <input type="text" name="BCC" />
+                    </td>
+                    <td>
+                        <label>Subject:</label>
+                        <input type="text" name="Subject" />
+                    </td>
+                    <td>
+                        <label>Body:</label>
+                        <input type="text" name="Body" />
+                    </td>
+                </form>
+            </tr>
+            <tr>
+                <!-- SetMailOutTo -->
+                <form name="formSetMailOutTo" id="SetMailOutTo" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('SetMailOutTo')">SetMailOutTo</button>
+                    </td>
+                    <td>
+                        <label>MailTo:</label>
+                        <input type="text" name="MailTo" />
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- SetMailOutCC -->
+                <form name="formSetMailOutCC" id="SetMailOutCC" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('SetMailOutCC')">SetMailOutCC</button>
+                    </td>
+                    <td>
+                        <label>CC:</label>
+                        <input type="text" name="CC" />
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- SetMailOutBCC -->
+                <form name="formSetMailOutBCC" id="SetMailOutBCC" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('SetMailOutBCC')">SetMailOutBCC</button>
+                    </td>
+                    <td>
+                        <label>BCC:</label>
+                        <input type="text" name="BCC" />
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- SetMailOutSubject -->
+                <form name="formSetMailOutSubject" id="SetMailOutSubject" method="get"
+                 >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('SetMailOutSubject')">SetMailOutSubject</button>
+                    </td>
+                    <td>
+                        <label>Subject:</label>
+                        <input type="text" name="Subject" />
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- SetMailOutBody -->
+                <form name="formSetMailOutBody" id="SetMailOutBody" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('SetMailOutBody')">SetMailOutBody</button>
+                    </td>
+                    <td>
+                        <label>Body:</label>
+                        <input type="text" name="Body" />
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- MailOutAttachmentInsert -->
+                <form name="formMailOutAttachmentInsert" id="MailOutAttachmentInsert"
+                method="get"  >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('MailOutAttachmentInsert')">MailOutAttachmentInsert</button>
+                    </td>
+                    <td>
+                        <label>Filename:</label>
+                        <input type="text" name="Filename" />
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- MailOutAttachmentDelete -->
+                <form name="formMailOutAttachmentDelete" id="MailOutAttachmentDelete"
+                method="get"  >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('MailOutAttachmentDelete')">MailOutAttachmentDelete</button>
+                    </td>
+                    <td>
+                        <label>Index:</label>
+                        <input type="text" name="Index" />
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- MailOutSend -->
+                <form name="formMailOutSend" id="MailOutSend" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('MailOutSend')">MailOutSend</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- FindMailById -->
+                <form name="formFindMailById" id="FindMailById" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('FindMailById')">FindMailById</button>
+                    </td>
+                    <td>
+                        <label>MailboxType:</label>
+                        <select name="MailboxType" id="MailboxType">
+                            <option value="0">Inbox</option>
+                            <option value="1">Outbox</option>
+                        </select>
+                    </td>
+                    <td>
+                        <label>MailId:</label>
+                        <input type="text" name="MailId" />
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- FindMailBySender -->
+                <form name="formFindMailBySender" id="FindMailBySender" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('FindMailBySender')">FindMailBySender</button>
+                    </td>
+                    <td>
+                        <label>MailboxType:</label>
+                        <select name="MailboxType" id="MailboxType">
+                            <option value="0">Inbox</option>
+                            <option value="1">Outbox</option>
+                        </select>
+                    </td>
+                    <td>
+                        <label>Sender:</label>
+                        <input type="text" name="Sender" />
+                    </td>
+                    <td>
+                        <label>Status:</label>
+                        <select name="Status" id="Status">
+                            <option value="0">[Todos]</option>
+                            <option value="1">No atendido/No enviado</option>
+                            <option value="2">En proceso/Enviado</option>
+                            <option value="3">Finalizado/--</option>
+                            <option value="4">Suspendido/--</option>
+                        </select>
+                    </td>
+                    <td>
+                        <label>Days:</label>
+                        <select name="Days" id="Days">
+                            <option value="0">0</option>
+                            <option value="1">1</option>
+                            <option value="2">2</option>
+                            <option value="7">7</option>
+                            <option value="15">15</option>
+                        </select>
+                    </td>
+                <tr>
+                    <td>&nbsp;</td>
+                    <td>
+                        <label>StartDate:</label>
+                        <input type="text" name="StartDate" />
+                    </td>
+                    <td>
+                        <label>EndDate:</label>
+                        <input type="text" name="EndDate"/>
+                    </td>
+                    <td colspan="2">NOTE: If using dates, set Days = 0</td>
+                  </tr>
+                </form>
+            </tr>
+            <tr>
+                <!-- GetSaveDraftMail -->
+                <form name="formGetSaveDraftMail" id="GetSaveDraftMail" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('GetSaveDraftMail')">GetSaveDraftMail</button>
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+            <tr>
+                <!-- SetSaveDraftMail -->
+                <form name="formSetSaveDraftMail" id="SetSaveDraftMail" method="get" 
+                >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('SetSaveDraftMail')">SetSaveDraftMail</button>
+                    </td>
+                    <td colspan="4">
+                        <label>SaveDraftMail:</label>
+                        <input type="text" name="SaveDraftMail" />(0: Disabled, 1: Enabled)
+                    </td>
+                </form>
+            </tr>
+            <tr>
+                <!-- RetrieveMailSuspended -->
+                <form name="formRetrieveMailSuspended" id="RetrieveMailSuspended" method="get"
+                 >
+                    <td align="center">
+                        <button class="sizebutton" type="button" onclick="SendPetition('RetrieveMailSuspended')">RetrieveMailSuspended</button>
+                    </td>
+                    <td>
+                        <label>MailId:</label>
+                        <input type="text" name="MailId" />
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </form>
+            </tr>
+        </table>				
+        <table>
+          <tr>
+                <label>HTTP Operation</label>
+                <textarea id="URLHTTPD" rows="1" cols="200"></textarea>
+          </tr>
+        	<tr>
+            <td>
+                <label>Result of operation:</label>
+				<div id= "TextResult">
+					<textarea name="TextResult" rows="6" cols="20"></textarea>
+				</div>                
+            </td>
+            <td>
+                <label>XMLResult of operation</label>
+				<div id= "XMLResult">
+					<textarea name="XMLResult" rows="6" cols="200"></textarea>
+				</div>
+            </td>
+          </tr>
+    </table>
+    </body>
+</html>
